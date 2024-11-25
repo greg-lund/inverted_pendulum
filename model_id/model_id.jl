@@ -2,7 +2,6 @@ using LinearAlgebra         # General matrix functionality, i.e. I
 using ForwardDiff           # Calculating Jacobians
 using CSV, DataFrames
 using Plots, LaTeXStrings
-using BSplineKit
 using Optim
 
 function dynamics(x,u,p)
@@ -33,13 +32,6 @@ function readTraj(filename)
   return t,x,theta
 end
 
-function getDerivs(x,t)
-  spline = interpolate(t,x,BSplineOrder(4))
-  vel = diff(spline,Derivative(1))
-  acc = diff(spline,Derivative(2))
-  return vel.(t),acc.(t)
-end
-
 function getFiniteDiffs(x,t)
   N = length(x)
   v = vcat([(x[i+1]-x[i])/(t[i+1]-t[i]) for i in 1:N-1],0)
@@ -66,7 +58,7 @@ end
 
 params = [62.5,0.98,4.85]
 
-filename = "data/swingup0.txt"
+filename = "data/run3.txt"
 t,x,theta = readTraj(filename)
 dt = t[2]-t[1]
 N = 250

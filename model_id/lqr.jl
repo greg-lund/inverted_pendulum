@@ -81,7 +81,6 @@ function optK(params,dt)
   return K
 end
 
-#params = [30.78382418855733, 0.4740118875157444, 1.2619764896261447]
 params = [62.5,0.98,4.85]
 
 x0 = [0,pi,0,0]; u0 = 0
@@ -91,6 +90,6 @@ duration = 2
 A,B,_ = autoLinDisc(x0,u0,params,control_dt)
 At = A[2:2:end,2:2:end]; Bt = B[2:2:end]
 #_,_,K,_,_ = ared(At,Bt,1,1); K = [0,K[1],0,K[2]]
-Q = diagm([50,1,1,1]); R = 0.1
+Q = diagm([50,1e-3,1,1e-3]); R = 2.0
 _,_,K,_,_ = ared(A,B,R,Q)
-plotLQR(K,[0,pi-0.2,0,0],params,control_dt,duration)
+plotLQR(K,[0,pi-0.11,0,0],params,control_dt,duration)
