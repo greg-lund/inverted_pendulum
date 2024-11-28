@@ -2,6 +2,7 @@ using LinearAlgebra         # General matrix functionality, i.e. I
 using ForwardDiff           # Calculating Jacobians
 using CSV, DataFrames       # Saving and loading trajectories
 using Plots, LaTeXStrings
+using Convex, SCS
 
 function dynamics(x,u,p)
   # state x = [x,theta,x_dot,theta_dot]
@@ -93,7 +94,7 @@ function sim(x0,utraj,dt,p)
 end
 
 function initTraj(N,dt,p)
-  u = (2*pi)^2*0.08*cos.(2*pi*(0:dt:(N-1)*dt))
+  u = -(2*pi)^2*0.08*cos.(2*pi*(0:dt:(N-1)*dt)) .* exp.(-2:2/(N-1):0)
   return sim(zeros(4),u,dt,p),u
 end
 
@@ -110,34 +111,79 @@ function plotTraj(X,dt)
 end
 
 function lsOpt(xtraj,utraj,dt,params,niter)
-  # Weights
-  pos_weight = 1
-  trust_region = 1
+  # Trust region schedule
+  trust_region = 0.05
+  pos_weight = 0.003
 
   xgoal = [0,pi,0,0]
 
-  N = size(xtraj,2)
+  d,N = size(xtraj)
   Bx,_ = cartPosMatrix(N,dt)
   BxBx = Bx'Bx
 
   for k in 1:niter
     _,Bt,ct = trajMatrix(xtraj,utraj,params,dt)
+
     unew = (Bt'Bt + pos_weight*BxBx + trust_region * I) \ (trust_region*utraj - Bt'*(ct-xgoal))
     obj = norm(Bt*unew + ct - xgoal) + pos_weight*norm(Bx*unew) + trust_region*norm(unew-utraj)
-    println("Iteration $k. Objective: $obj")
+    #println("Iteration $k. Cart position norm: $(norm(Bx*unew)). Control diff norm: $(norm(unew-utraj))")
+    println("Iteration $k. End goal error: $(norm(Bt*unew+ct-xgoal)). Max cart position: $(maximum(abs.(Bx*unew))). Control diff: $(norm(unew-utraj))")
     utraj = copy(unew)
     xtraj = sim(zeros(4),unew,dt,params)
+    if norm(Bt*unew+ct-xgoal) < 1e-2 && maximum(abs.(Bx*unew)) <= 0.125
+      break
+    end
   end
   return xtraj,utraj
 end
 
-params = [58.29, 0.46, 5.95]
+function cvxOpt(xtraj,utraj,dt,params,niter)
+  d,N = size(xtraj)
+  trust_region = 1e-2
+  xgoal = [0,pi,0,0]
+  xmax = 0.12
+  umax = 3.0
 
-N = 300
+  Bx,_ = cartPosMatrix(N,dt)
+  Bt = Variable(d,N)
+  ct = Variable(d)
+  uprev = Variable(N)
+  u = Variable(N)
+
+  obj = norm(Bt*u+ct-xgoal)
+  constr = [-xmax <= Bx*u, Bx*u <= xmax] # Cart position
+  constr += [-trust_region <= u-uprev, u-uprev <= trust_region] # Trust region
+  constr += [-umax <= u, u <= umax] # Max control 
+
+  prob = minimize(obj,constr)
+
+  for k in 1:niter
+    _,mBt,mct = trajMatrix(xtraj,utraj,params,dt)
+    fix!(Bt,mBt)
+    fix!(ct,mct)
+    fix!(uprev,utraj)
+    
+    solve!(prob,SCS.Optimizer,silent_solver = true,warmstart=k>1)
+
+    utraj = u.value
+    xtraj = sim(zeros(4),utraj,dt,params)
+    println("Iteration $k. End goal error: $(norm(mBt*utraj+ct.value-xgoal)). Max cart position: $(maximum(abs.(Bx*utraj))). Control diff: $(norm(uprev.value-utraj))")
+    if norm(mBt*utraj+ct.value-xgoal) < 1e-2
+      break
+    end
+  end
+  return xtraj,utraj
+end
+
+params = [54.22,0.075,5.6]
+
+N = 350
 dt = 1e-2
-#xtraj,utraj = initTraj(N,dt,params)
-#xopt,uopt = lsOpt(xtraj,utraj,dt,params,10000)
+niter = 10000
+xtraj,utraj = initTraj(N,dt,params)
+xopt,uopt = lsOpt(xtraj,utraj,dt,params,niter)
+#xopt,uopt = cvxOpt(xtraj,utraj,dt,params,niter)
 
-#writeTraj(xopt,dt,"data/control_traj.h")
+writeTraj(xopt,dt,"data/control_traj.h")
 
 plotTraj(xopt,dt)

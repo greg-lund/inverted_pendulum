@@ -43,7 +43,7 @@ function sim(x0,utraj,dt,params)
   N = length(utraj)
   X = zeros(4,N)
   X[:,1] = x0
-  nstep = 1
+  nstep = 100
   for i in 1:N-1
     x = X[:,i]
     u = utraj[i]
@@ -55,34 +55,74 @@ function sim(x0,utraj,dt,params)
   return X
 end
 
+function optControlParam(filename,natParams)
+  t,x,theta = readTraj(filename)
+  dt = t[2]-t[1]
+  
+  xdot,xddot = getFiniteDiffs(x,t)
+  thetadot,thetaddot = getFiniteDiffs(theta,t)
+  x0 = [x[1],theta[1],xdot[1],thetadot[1]]
+  
+  # Optimize for the parameters
+  J(c) = norm( sim(x0,xddot,dt,[natParams[1],natParams[2],c[1]])[2,:] - theta )
+  result = optimize(J, [5.0])
+  optC = result.minimizer[1]
 
-params = [62.5,0.98,4.85]
+  return [natParams[1],natParams[2],optC]
+end
 
-filename = "data/run3.txt"
-t,x,theta = readTraj(filename)
-dt = t[2]-t[1]
-N = 250
-t = t[1:N]; x = x[1:N]; theta = theta[1:N]
+function optParams(filename)
+  t,x,theta = readTraj(filename)
+  dt = t[2]-t[1]
+  
+  xdot,xddot = getFiniteDiffs(x,t)
+  thetadot,thetaddot = getFiniteDiffs(theta,t)
+  x0 = [x[1],theta[1],xdot[1],thetadot[1]]
+  
+  # Optimize for the parameters
+  J(p) = norm( sim(x0,xddot,dt,p)[2,:] - theta )
+  result = optimize(J, params)
+  opt_params = result.minimizer
 
-xdot,xddot = getFiniteDiffs(x,t)
-thetadot,thetaddot = getFiniteDiffs(theta,t)
-x0 = [x[1],theta[1],xdot[1],thetadot[1]]
+  return opt_params
+end
 
+function plotFit(filename,params)
+  t,x,theta = readTraj(filename)
+  dt = t[2]-t[1]
+  xdot,xddot = getFiniteDiffs(x,t)
+  thetadot,thetaddot = getFiniteDiffs(theta,t)
+  x0 = [x[1],theta[1],xdot[1],thetadot[1]]
+  X = sim(x0,xddot,dt,params)
+  
+  p1 = plot(t,x,ylabel=L"x")
+  plot!(t,X[1,:],label="sim")
+  p2 = plot(t,theta,ylabel=L"\theta")
+  plot!(t,X[2,:],label="sim")
+  p3 = plot(t,xdot,ylabel=L"\dot{x}")
+  plot!(t,X[3,:],label="sim")
+  p4 = plot(t,thetadot,ylabel=L"\dot{\theta}")
+  plot!(t,X[4,:],label="sim")
+  plot(p1,p2,p3,p4,layout=(2,2))
+end
 
-# Optimize for the parameters
-J(p) = norm( sim(x0,xddot,dt,p)[2,:] - theta )
-result = optimize(J, [65.,1,1])
-opt_params = result.minimizer
-println("Parameter fit: $(opt_params)")
+natParams = [54.22, 0.075, 0]
+params = [54.22,0.075,5.6]
 
-X = sim(x0,xddot,dt,opt_params)
+#filename = "data/simplePendulum.txt"
+#simple_params = optParams(filename)
+#plotFit(filename,params)
 
-p1 = plot(t,x,ylabel=L"x")
-plot!(t,X[1,:],label="sim")
-p2 = plot(t,theta,ylabel=L"\theta")
-plot!(t,X[2,:],label="sim")
-p3 = plot(t,xdot,ylabel=L"\dot{x}")
-plot!(t,X[3,:],label="sim")
-p4 = plot(t,thetadot,ylabel=L"\dot{\theta}")
-plot!(t,X[4,:],label="sim")
-plot(p1,p2,p3,p4,layout=(2,2))
+filename = "data/swingup5.txt"
+#p = optControlParam(filename,natParams)
+plotFit(filename,params)
+
+#for i in 0:9
+#  if i == 0
+#    filename = "data/swingup.txt"
+#  else
+#    filename = "data/swingup$i.txt"
+#  end
+#  p = optControlParam(filename,natParams)
+#  println("$filename: $p")
+#end

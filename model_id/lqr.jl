@@ -81,7 +81,7 @@ function optK(params,dt)
   return K
 end
 
-params = [62.5,0.98,4.85]
+params = [54.22,0.075,5.6]
 
 x0 = [0,pi,0,0]; u0 = 0
 control_dt = 1e-2
@@ -92,4 +92,4 @@ At = A[2:2:end,2:2:end]; Bt = B[2:2:end]
 #_,_,K,_,_ = ared(At,Bt,1,1); K = [0,K[1],0,K[2]]
 Q = diagm([50,1e-3,1,1e-3]); R = 2.0
 _,_,K,_,_ = ared(A,B,R,Q)
-plotLQR(K,[0,pi-0.11,0,0],params,control_dt,duration)
+plotLQR(K,[0,pi-0.9,0,2],params,control_dt,duration)
