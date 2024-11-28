@@ -25,7 +25,6 @@ void homeControl();
 void sinControl(float,float,float);
 void swingupControl();
 void balanceControl();
-void justBalanceControl();
 void energyPumpControl(float);
 void encoder_callback();
 void logVars(float);
@@ -194,19 +193,14 @@ void swingupControl()
   logVars(sinceSettle*1e-6 - SETTLE_TIME);
 }
 
-void balanceControl(bool justBalance)
+void balanceControl()
 {
-  if(sinceSettle > 1e6 * ((justBalance ? 1.0 : 0.0)*BALANCE_DURATION+SETTLE_TIME))
+  if(sinceSettle > 1e6 * BALANCE_DURATION)
   {
     vel_dt = ULONG_MAX;
     state = 4;
     return;
-  } else if(justBalance && sinceSettle < 1e6 * SETTLE_TIME)
-  {
-    prevEncoderPos = encoderPos;
-    vel_dt = ULONG_MAX;
-    return;
-  }
+  } 
 
   float x = motorPos*DIST_PER_STEP;
   float theta = encoderPos * (2*M_PI/PPR);
@@ -299,6 +293,7 @@ void energyPumpControl(float duration)
   {
     if(theta < 0) encoderPos += PPR;
     vel_dt = ULONG_MAX;
+    sinceSettle = 0;
     state = 2; // Success, go to balance
     return;
   } else if(sinceSettle > 1e6*duration || abs(x) >= XMAX/2)
@@ -308,7 +303,7 @@ void energyPumpControl(float duration)
     return;
   }
 
-  float ue = -b*thetadot / (c*cos(theta)) + cos(theta)*thetadot*(1/(2*a)*thetadot*thetadot-cos(theta)-1.005);
+  float ue = -b*thetadot / (c*cos(theta)) + cos(theta)*thetadot*(1/(2*a)*thetadot*thetadot-cos(theta)-1.004);
   float u = ke*ue - kx*x - kv*xdot;
   u = max(min(u,maxU),-maxU);
   float desVel = xdot+u*(CONTROL_DT*1e-6);
